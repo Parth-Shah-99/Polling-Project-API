@@ -1,42 +1,52 @@
 from rest_framework import serializers
-from .models import Question, Answer, Comment, AnswerVote, CommentVote
-
-
-
-class AnswerVoteSerializer(serializers.ModelSerializer):
-	class Meta:
-		model = AnswerVote
-		fields = ["id", "user", "answer", "vote"]
-
-
-class CommentVoteSerializer(serializers.ModelSerializer):
-	class Meta:
-		model = CommentVote
-		fields = ["id", "user", "comment", "choice"]
-
-
+from .models import Question, Answer, Comment
+from datetime import datetime
 
 
 class CommentSerializer(serializers.ModelSerializer):
-	class Meta:
-		model = Comment
-		fields = ["id", "comment_text", "comment_author", "answer", "user_choices"]
+    created_on = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Comment
+        fields = ["id", "comment_text", "comment_author", "answer", "like_users", "dislike_users", "created_on"]
+
+    def get_created_on(self, obj):
+        return obj.created_on.strftime("%Y-%m-%d %X")
 
 
 class AnswerSerializer(serializers.ModelSerializer):
-	comments = CommentSerializer(many=True, read_only=True)
+    comments = CommentSerializer(many=True, read_only=True)
+    created_on = serializers.SerializerMethodField()
 
-	class Meta:
-		model = Answer
-		fields = ["id", "answer_text", "answer_author", "question", "comments"]
+    class Meta:
+        model = Answer
+        fields = ["id", "answer_text", "answer_author", "question", "upvote_users", "downvote_users", "comments", "created_on"]
+        extra_kwargs = {'answer_text': {'required': False},
+        				'answer_author': {'required': False},
+        				'question': {'required': False}
+        			}
+
+    def get_created_on(self, obj):
+        return obj.created_on.strftime("%Y-%m-%d %X")
 
 
 class QuestionSerializer(serializers.ModelSerializer):
-	answers = AnswerSerializer(many=True, read_only=True)
-	
-	class Meta:
-		model = Question
-		fields = ["id", "question_text", "question_author", "is_solved", "answers"]
+    answers = AnswerSerializer(many=True, read_only=True)
+    created_on = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Question
+        fields = ["id", "question_text", "question_author", "is_solved", "answers", "created_on"]
+        extra_kwargs = {'question_text': {'required': False},
+        				'question_author': {'required': False},
+        				'is_solved': {'required': False}
+        			}
+
+
+    def get_created_on(self, obj):
+        return obj.created_on.strftime("%Y-%m-%d %X")
+
+    
 
 
 

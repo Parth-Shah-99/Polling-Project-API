@@ -14,6 +14,10 @@ from rest_framework.routers import DefaultRouter
 # urls
 urlpatterns = [
     # path('', include(router.urls)),
+
+    path('login/', views.login_user, name='login'),
+    path('logout/', views.logout_user, name='logout'),
+
     path('question/', views.QuestionAPIView.as_view(), name='question_view'),
     path('question/<int:pk>/', views.QuestionDetailAPIView.as_view(), name='question_detail'),
     path('question/<int:pk>/vote/', views.QuestionDetailAPIView.as_view(), name='question_vote'),
