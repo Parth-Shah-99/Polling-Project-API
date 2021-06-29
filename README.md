@@ -51,9 +51,10 @@ python manage.py runserver
 ```
 Finally, you are ready to use the API.
 
-For API Documentation, navigate to [http://127.0.0.1:8000/swagger/](http://127.0.0.1:8000/swagger/)
-
 For Admin Panel, navigate to [http://127.0.0.1:8000/admin/](http://127.0.0.1:8000/admin/) and enter username and password you have used earlier.
+
+# API Documentation
+For API Documentation, navigate to [http://127.0.0.1:8000/swagger/](http://127.0.0.1:8000/swagger/)
 
 # License [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 Please see the [LICENSE](https://github.com/Parth-Shah-99/Polling-Project-API/blob/master/LICENSE) file for details.
