@@ -14,13 +14,14 @@ from rest_framework.authentication import BasicAuthentication, SessionAuthentica
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
+from rest_framework.authtoken.models import Token
 
 
 # Create your views here.
 
 class QuestionAPIView(APIView):
 
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -51,7 +52,7 @@ class QuestionAPIView(APIView):
 
 class QuestionDetailAPIView(APIView):
 
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication, BasicAuthentication]    
     permission_classes = [IsAuthenticated]
 
     def get_object(self, pk):
@@ -105,7 +106,7 @@ class QuestionDetailAPIView(APIView):
 
 class AnswerAPIView(APIView):
 
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -137,7 +138,7 @@ class AnswerAPIView(APIView):
 
 class AnswerDetailAPIView(APIView):
 
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get_object(self, pk):
@@ -247,7 +248,7 @@ class AnswerDetailAPIView(APIView):
 
 class CommentAPIView(APIView):
 
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -279,7 +280,7 @@ class CommentAPIView(APIView):
 
 class CommentDetailAPIView(APIView):
 
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [TokenAuthentication, SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get_object(self, pk):
@@ -410,3 +411,27 @@ def login_user(request):
 def logout_user(request):
     logout(request)
     return render(request, 'logout.html')
+
+
+class LoginAPIView(APIView):
+    
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            token = Token.objects.create(user=user)
+            return Response({"detail": "Correct Username/Password", "token": token.key}, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Incorrect Username/Password"}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+class LogoutAPIView(APIView):
+
+    authentication_classes = [TokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        user = request.user
+        Token.objects.get(user=user).delete()
+        return Response({"detail": "You are Logged out."})
