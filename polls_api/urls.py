@@ -20,15 +20,12 @@ urlpatterns = [
 
     path('question/', views.QuestionAPIView.as_view(), name='question_view'),
     path('question/<int:pk>/', views.QuestionDetailAPIView.as_view(), name='question_detail'),
-    path('question/<int:pk>/vote/', views.QuestionDetailAPIView.as_view(), name='question_vote'),
 
     path('answer/', views.AnswerAPIView.as_view(), name='answer_view'),
     path('answer/<int:pk>/', views.AnswerDetailAPIView.as_view(), name='answer_detail'),
-    path('answer/<int:pk>/vote/', views.AnswerDetailAPIView.as_view(), name='answer_vote'),
 
     path('comment/', views.CommentAPIView.as_view(), name='comment_view'),
     path('comment/<int:pk>/', views.CommentDetailAPIView.as_view(), name='comment_detail'),
-    path('comment/<int:pk>/vote/', views.CommentDetailAPIView.as_view(), name='comment_vote'),
 
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework'))
 ]

@@ -14,7 +14,6 @@ from rest_framework.authentication import BasicAuthentication, SessionAuthentica
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 
 
 # Create your views here.
@@ -74,7 +73,7 @@ class QuestionDetailAPIView(APIView):
         changes = 0
 
         # question_text possible to change
-        if request.data.get('question_text', None) not in [None, ""]:
+        if request.data.get('question_text', None):
             changes += 1
 
         # question_author not possible to change
@@ -94,11 +93,14 @@ class QuestionDetailAPIView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
+        if self.get_object(pk).question_author.id != request.user.id:
+            return Response({"error": "You are not authorized to delete the question."}, status=status.HTTP_401_UNAUTHORIZED)
         self.get_object(pk).delete()
-        return Response({"detail": "Question deleted successfully !!"}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"detail": "Question deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 
 class AnswerAPIView(APIView):
@@ -129,6 +131,7 @@ class AnswerAPIView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -150,69 +153,96 @@ class AnswerDetailAPIView(APIView):
     def patch(self, request, pk):
 
         answer = self.get_object(pk)
+        message = dict()
 
-        # answer_text possible to change only by author
-        if answer.answer_author.id == request.user.id:
-            if request.data.get('answer_text', None):
-                answer.answer_text = request.data.get('answer_text')
-                answer.save()
-                return Response({"message": "Answer Text updated successfully."}, status=status.HTTP_200_OK)
+        def update_answer():
+            answer.answer_text = request.data.get('answer_text')
+            answer.save()
+            return "Answer Text updated successfully."
+
+        def update_vote():
+            if answer.upvote_users.all().filter(id=request.user.id).exists():
+                current = "upvote"
+            elif answer.downvote_users.all().filter(id=request.user.id).exists():
+                current = "downvote"
             else:
-                return Response({"error": "Please provide valid data to edit answer."}, status=status.HTTP_400_BAD_REQUEST)
+                current = "neither"
+
+            if request.data.get('vote') == "upvote":
+                new = "upvote"
+            elif request.data.get('vote') == "downvote":
+                new = "downvote"
+            
+           
+
+            user = request.user
+            if current == "neither" and new == "upvote":
+                answer.upvote_users.add(user)
+                return "You have successfully upvoted in this Answer."
+
+            elif current == "neither" and new == "downvote":
+                answer.downvote_users.add(user)
+                return "You have successfully downvoted in this Answer."
+
+            elif current == "upvote" and new == "downvote":
+                answer.upvote_users.remove(user)
+                answer.downvote_users.add(user)
+                return "You have successfully downvoted in this Answer."
+
+            elif current == "downvote" and new == "upvote":
+                answer.downvote_users.remove(user)
+                answer.upvote_users.add(user)
+                return "You have successfully upvoted in this Answer."
+
+            elif current == "upvote" and new == "upvote":
+                return "You have already upvoted in this Answer."
+
+            elif current == "downvote" and new == "downvote":
+                return "You have already downvoted in this Answer."
+
+
+        # author:
+        if answer.answer_author.id == request.user.id:
+
+            # both change - 2 message
+            if request.data.get('answer_text', None) and request.data.get('vote', None):
+                message["detail_1"] = update_answer()
+                message["detail_2"] = update_vote()
+            # only answer - 1 message
+            elif request.data.get('answer_text', None):
+                message["detail"] = update_answer()
+            # only vote - 1 message
+            elif request.data.get('vote', None):
+                message["detail"] = update_vote()
+            # none - 1 error
+            else:
+                message["error"] = "Please provide valid data to edit the answer."
+    
+
+        # other users
         else:
-            if request.data.get('answer_text', None):
-                 return Response({"detail": "You are not authorized to edit this answer text."}, status=status.HTTP_401_UNAUTHORIZED)
-        
 
-        # answer_author not possible to change
-        if request.data.get('answer_author', None):
-            del request.data['answer_author']
+            # both change - 1 error, 1 message
+            if request.data.get('answer_text', None) and request.data.get('vote', None):
+                message["error"] = "You are not authorized to edit the answer text."
+                message["detail"] = update_vote()
+            # only answer - 1 error
+            elif request.data.get('answer_text', None):
+                message["error"] = "You are not authorized to edit the answer text."
+            # only vote - 1 message
+            elif request.data.get('vote', None):
+                message["detail"] = update_vote()
+            # none - 1 error
+            else:
+                message["error"] = "Please provide valid data to edit the answer."
 
-
-        # vote possible to change by any user other than author (after text update i am returning)
-        if answer.upvote_users.all().filter(id=request.user.id).exists():
-            current = "upvote"
-        elif answer.downvote_users.all().filter(id=request.user.id).exists():
-            current = "downvote"
-        else:
-            current = "neither"
-
-        if request.data.get('vote') == "upvote":
-            new = "upvote"
-        elif request.data.get('vote') == "downvote":
-            new = "downvote"
-        else:
-            return Response({"error": "Please provide valid vote to edit answer."}, status=status.HTTP_400_BAD_REQUEST)
-       
-
-        user = request.user
-        if current == "neither" and new == "upvote":
-            answer.upvote_users.add(user)
-            return Response({"detail": "You have successfully upvoted in this Answer."}, status=status.HTTP_200_OK)
-        elif current == "neither" and new == "downvote":
-            answer.downvote_users.add(user)
-            return Response({"detail": "You have successfully downvoted in this Answer."}, status=status.HTTP_200_OK)
-        elif current == "upvote" and new == "downvote":
-            answer.upvote_users.remove(user)
-            answer.downvote_users.add(user)
-            return Response({"detail": "You have successfully downvoted in this Answer."}, status=status.HTTP_200_OK)
-        elif current == "downvote" and new == "upvote":
-            answer.downvote_users.remove(user)
-            answer.upvote_users.add(user)
-            return Response({"detail": "You have successfully upvoted in this Answer."}, status=status.HTTP_200_OK)
-        elif current == "upvote" and new == "upvote":
-            return Response({"detail": "You have already upvoted in this Answer."}, status=status.HTTP_400_BAD_REQUEST)
-        elif current == "downvote" and new == "downvote":    
-            return Response({"detail": "You have already downvoted in this Answer."}, status=status.HTTP_400_BAD_REQUEST)
-
-
-        return Response({"error": "Some Error Occured."}, status=status.HTTP_400_BAD_REQUEST)
-
+        return Response(message)
 
     def delete(self, request, pk):
+        if self.get_object(pk).answer_author.id != request.user.id:
+            return Response({"error": "You are not authorized to delete the answer."}, status=status.HTTP_401_UNAUTHORIZED)
         self.get_object(pk).delete()
-        return Response({"detail": "Answer deleted successfully !!"}, status=status.HTTP_204_NO_CONTENT)
-
+        return Response({"detail": "Answer deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 
 class CommentAPIView(APIView):
@@ -227,13 +257,23 @@ class CommentAPIView(APIView):
 
     def post(self, request):
 
-        # necessary = [comment_text, answer]
+        # comment_text necessary to pass
+        if request.data.get('comment_text', None) in [None, ""]:
+            return Response({"error": "Please provide comment text to create new comment."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # comment_author default to user who is logged in
         request.data.update({"comment_author": request.user.id})
+
+        # answer necessary to pass
+        if request.data.get('answer', None) in [None, ""]:
+            return Response({"error": "Please provide answer id to create new comment."}, status=status.HTTP_400_BAD_REQUEST)
+        
         serializer = CommentSerializer(data=request.data)
 
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -252,17 +292,100 @@ class CommentDetailAPIView(APIView):
         serializer = CommentSerializer(self.get_object(pk))
         return Response(serializer.data)
 
-    def put(self, request, pk):
-        serializer = CommentSerializer(self.get_object(pk), data=request.data)
+    def patch(self, request, pk):
 
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        comment = self.get_object(pk)
+        message = dict()
+
+        def update_comment():
+            comment.comment_text = request.data.get('comment_text')
+            comment.save()
+            return "Comment Text updated successfully."
+
+        def update_choice():
+            if comment.like_users.all().filter(id=request.user.id).exists():
+                current = "like"
+            elif comment.dislike_users.all().filter(id=request.user.id).exists():
+                current = "dislike"
+            else:
+                current = "neither"
+
+            if request.data.get('choice') == "like":
+                new = "like"
+            elif request.data.get('choice') == "dislike":
+                new = "dislike"
+            
+           
+
+            user = request.user
+            if current == "neither" and new == "like":
+                comment.like_users.add(user)
+                return "You have successfully liked this Comment."
+
+            elif current == "neither" and new == "dislike":
+                comment.dislike_users.add(user)
+                return "You have successfully disliked this Comment."
+
+            elif current == "like" and new == "dislike":
+                comment.like_users.remove(user)
+                comment.dislike_users.add(user)
+                return "You have successfully disliked this Comment."
+
+            elif current == "dislike" and new == "like":
+                comment.dislike_users.remove(user)
+                comment.like_users.add(user)
+                return "You have successfully liked this Comment."
+
+            elif current == "like" and new == "like":
+                return "You have already liked this Comment."
+
+            elif current == "dislike" and new == "dislike":
+                return "You have already disliked this Comment."
+
+
+        # author:
+        if comment.comment_author.id == request.user.id:
+
+            # both change - 2 message
+            if request.data.get('comment_text', None) and request.data.get('choice', None):
+                message["detail_1"] = update_comment()
+                message["detail_2"] = update_choice()
+            # only comment - 1 message
+            elif request.data.get('comment_text', None):
+                message["detail"] = update_comment()
+            # only choice - 1 message
+            elif request.data.get('choice', None):
+                message["detail"] = update_choice()
+            # none - 1 error
+            else:
+                message["error"] = "Please provide valid data to edit the comment."
+    
+
+        # other users
+        else:
+
+            # both change - 1 error, 1 message
+            if request.data.get('comment_text', None) and request.data.get('choice', None):
+                message["error"] = "You are not authorized to edit the comment text."
+                message["detail"] = update_choice()
+            # only comment - 1 error
+            elif request.data.get('comment_text', None):
+                message["error"] = "You are not authorized to edit the comment text."
+            # only choice - 1 message
+            elif request.data.get('choice', None):
+                message["detail"] = update_choice()
+            # none - 1 error
+            else:
+                message["error"] = "Please provide valid data to edit the comment."
+
+        return Response(message)
+        
 
     def delete(self, request, pk):
+        if self.get_object(pk).comment_author.id != request.user.id:
+            return Response({"error": "You are not authorized to delete the comment."}, status=status.HTTP_401_UNAUTHORIZED)
         self.get_object(pk).delete()
-        return Response({"detail": "Comment deleted successfully !!"}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"detail": "Comment deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 
 def login_user(request):
@@ -282,6 +405,7 @@ def login_user(request):
             messages.warning(request, "Incorrect Username/Password!!")
 
     return render(request, 'login.html')
+
 
 def logout_user(request):
     logout(request)
